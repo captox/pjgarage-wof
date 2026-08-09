@@ -16,7 +16,10 @@ const claimCode = document.getElementById("claimCode");
 const prizePoolEl = document.getElementById("prizePool");
 const balanceEl = document.getElementById("balance");
 
-const token = new URLSearchParams(location.search).get("t");
+const shortLinkMatch = location.pathname.match(/^\/s\/([23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{8})\/?$/i);
+// The API field is still named `token` for backward compatibility, but it can
+// now contain either a short invite code or an older signed token.
+const token = shortLinkMatch ? shortLinkMatch[1].toUpperCase() : new URLSearchParams(location.search).get("t");
 let prizes = [];
 let rotation = 0;
 

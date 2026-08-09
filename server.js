@@ -61,9 +61,17 @@ db.exec(`
     user_id TEXT NOT NULL UNIQUE,
     label TEXT,
     token TEXT NOT NULL,
+    code TEXT UNIQUE,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
 `);
+
+// V3.2-short migration: preserve existing databases and add short invite codes.
+const inviteColumns = db.prepare("PRAGMA table_info(invite_links)").all();
+if (!inviteColumns.some(col => col.name === "code")) {
+  db.exec("ALTER TABLE invite_links ADD COLUMN code TEXT");
+}
+db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_invite_links_code ON invite_links(code)");
 
 const rateBuckets = new Map();
 function allowSpin(ip) {
@@ -152,6 +160,50 @@ function esc(s) {
   return String(s ?? "").replace(/[&<>\"]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
 }
 
+function makeInviteCode(length = 8) {
+  // Avoid visually ambiguous characters such as 0/O and 1/I.
+  const alphabet = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
+  let code = "";
+  for (let i = 0; i < length; i += 1) code += alphabet[crypto.randomInt(alphabet.length)];
+  return code;
+}
+
+function uniqueInviteCode() {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const code = makeInviteCode();
+    const exists = db.prepare("SELECT 1 FROM invite_links WHERE code = ?").get(code);
+    if (!exists) return code;
+  }
+  throw new Error("Could not generate a unique invite code");
+}
+
+function ensureInviteCode(userId, token, label = null) {
+  const existing = db.prepare("SELECT code, token FROM invite_links WHERE user_id = ?").get(userId);
+  if (existing?.code) return existing.code;
+  const code = uniqueInviteCode();
+  if (existing) {
+    db.prepare("UPDATE invite_links SET code = ?, token = COALESCE(token, ?) WHERE user_id = ?").run(code, token, userId);
+  } else {
+    db.prepare("INSERT INTO invite_links (user_id, label, token, code) VALUES (?, ?, ?, ?)").run(userId, label, token, code);
+  }
+  return code;
+}
+
+function resolveSpinCredential(credential) {
+  const value = String(credential || "").trim();
+  if (!value) throw new Error("Invalid token");
+  // Legacy signed links remain valid.
+  if (value.includes(".")) return verifySpinToken(value, TOKEN_SECRET);
+  const row = db.prepare("SELECT token FROM invite_links WHERE code = ?").get(value.toUpperCase());
+  if (!row?.token) throw new Error("Invalid invite code");
+  return verifySpinToken(row.token, TOKEN_SECRET);
+}
+
+// Backfill short codes for invites created by earlier versions.
+for (const row of db.prepare("SELECT user_id, token FROM invite_links WHERE code IS NULL OR code = ''").all()) {
+  ensureInviteCode(row.user_id, row.token);
+}
+
 function serveStatic(urlPath, res) {
   const map = {
     "/": ["index.html", "text/html; charset=utf-8"],
@@ -177,7 +229,8 @@ async function sendMessengerSpinButton(psid) {
   }
 
   const token = signSpinToken(psid, TOKEN_SECRET);
-  const spinUrl = `${PUBLIC_BASE_URL}/?t=${encodeURIComponent(token)}`;
+  const code = ensureInviteCode(psid, token, "Messenger");
+  const spinUrl = `${PUBLIC_BASE_URL}/s/${code}`;
   const endpoint = `https://graph.facebook.com/${graphVersion}/${pageId}/messages`;
   const response = await fetch(endpoint, {
     method: "POST",
@@ -205,6 +258,10 @@ const server = http.createServer(async (req, res) => {
     const u = new URL(req.url, `http://${req.headers.host || "localhost"}`);
     const pathname = u.pathname;
 
+    if (req.method === "GET" && /^\/s\/[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{8}\/?$/i.test(pathname)) {
+      return serveStatic("/", res);
+    }
+
     if (req.method === "GET" && serveStatic(pathname, res)) return;
 
     if (req.method === "GET" && pathname === "/api/prizes") {
@@ -214,7 +271,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "POST" && pathname === "/api/status") {
       try {
         const body = await readJson(req);
-        const payload = verifySpinToken(body.token, TOKEN_SECRET);
+        const payload = resolveSpinCredential(body.token);
         const customer = db.prepare("SELECT first_name, last_name FROM customers WHERE user_id = ?").get(payload.sub);
         const row = db.prepare("SELECT balance FROM spin_credits WHERE user_id = ?").get(payload.sub);
         return json(res, 200, {
@@ -232,7 +289,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "POST" && pathname === "/api/register") {
       try {
         const body = await readJson(req);
-        const payload = verifySpinToken(body.token, TOKEN_SECRET);
+        const payload = resolveSpinCredential(body.token);
         const userId = payload.sub;
         const firstName = String(body.firstName || "").trim().replace(/\s+/g, " ");
         const lastName = String(body.lastName || "").trim().replace(/\s+/g, " ");
@@ -269,7 +326,7 @@ const server = http.createServer(async (req, res) => {
       if (!allowSpin(ip)) return json(res, 429, { error: "Too many requests. Please try again shortly." });
       try {
         const body = await readJson(req);
-        const payload = verifySpinToken(body.token, TOKEN_SECRET);
+        const payload = resolveSpinCredential(body.token);
         const userId = payload.sub;
         const customer = db.prepare("SELECT user_id FROM customers WHERE user_id = ?").get(userId);
         if (!customer) return json(res, 409, { error: "Please enter your name first." });
@@ -306,7 +363,8 @@ const server = http.createServer(async (req, res) => {
       const userId = String(body.userId || "").trim();
       if (!userId || userId.length > 200) return json(res, 400, { error: "A valid userId is required." });
       const token = signSpinToken(userId, TOKEN_SECRET);
-      return json(res, 200, { url: `${PUBLIC_BASE_URL}/?t=${encodeURIComponent(token)}` });
+      const code = ensureInviteCode(userId, token, "Bot/API");
+      return json(res, 200, { url: `${PUBLIC_BASE_URL}/s/${code}`, code });
     }
 
     if (req.method === "GET" && pathname === "/webhook") {
@@ -334,7 +392,7 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === "GET" && pathname === "/admin") {
       if (!requireAdmin(req, res)) return;
-      const invites = db.prepare(`SELECT i.id, i.user_id, i.label, i.token, i.created_at, cu.first_name, cu.last_name
+      const invites = db.prepare(`SELECT i.id, i.user_id, i.label, i.token, i.code, i.created_at, cu.first_name, cu.last_name
         FROM invite_links i LEFT JOIN customers cu ON cu.user_id = i.user_id
         ORDER BY i.id DESC LIMIT 200`).all();
       const customers = db.prepare(`SELECT cu.user_id, cu.first_name, cu.last_name, cu.created_at, COALESCE(sc.balance,0) AS balance,
@@ -350,7 +408,7 @@ const server = http.createServer(async (req, res) => {
       const totals = db.prepare(`SELECT COUNT(*) AS spins, SUM(CASE WHEN amount > 0 THEN 1 ELSE 0 END) AS winners, COALESCE(SUM(amount),0) AS payout, COALESCE(SUM(CASE WHEN claimed_at IS NOT NULL THEN amount ELSE 0 END),0) AS claimed FROM spins`).get();
       const creditTotal = db.prepare("SELECT COALESCE(SUM(balance),0) AS available FROM spin_credits").get();
       const inviteRows = invites.map(i => {
-        const spinUrl = `${PUBLIC_BASE_URL}/?t=${encodeURIComponent(i.token)}`;
+        const spinUrl = i.code ? `${PUBLIC_BASE_URL}/s/${i.code}` : `${PUBLIC_BASE_URL}/?t=${encodeURIComponent(i.token)}`;
         const registeredName = [i.first_name, i.last_name].filter(Boolean).join(" ");
         return `<tr><td>${i.id}</td><td>${esc(i.label || "-")}</td><td>${esc(registeredName || "Not registered")}</td><td>${esc(i.user_id)}</td><td><input class="linkbox" value="${esc(spinUrl)}" readonly onclick="this.select()"></td><td>${esc(i.created_at)}</td></tr>`;
       }).join("");
@@ -366,7 +424,8 @@ const server = http.createServer(async (req, res) => {
       const label = String(form.get("label") || "").trim().slice(0, 80);
       const userId = `C-${crypto.randomBytes(8).toString("hex").toUpperCase()}`;
       const token = signSpinToken(userId, TOKEN_SECRET);
-      db.prepare("INSERT INTO invite_links (user_id, label, token) VALUES (?, ?, ?)").run(userId, label || null, token);
+      const code = uniqueInviteCode();
+      db.prepare("INSERT INTO invite_links (user_id, label, token, code) VALUES (?, ?, ?, ?)").run(userId, label || null, token, code);
       res.writeHead(303, securityHeaders({ Location: "/admin" }));
       return res.end();
     }
@@ -411,6 +470,6 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`Free Spin Wheel running at ${PUBLIC_BASE_URL}`);
+  console.log(`PJ Garage Promo Spin running at ${PUBLIC_BASE_URL}`);
   if (TOKEN_SECRET.includes("change-me") || ADMIN_PASSWORD === "change-me") console.warn("WARNING: replace development secrets before deploying publicly.");
 });

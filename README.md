@@ -1,3 +1,7 @@
+# PJ Garage Promo Spin V3.1
+
+V3.1 fixes wheel/result alignment by using one coordinate system for the visual wedges, labels, pointer, and landing calculation. Prize index 0 is centered at the 12-o'clock pointer and each subsequent result is exactly 45° clockwise.
+
 # Free Promotional Spin Wheel — Manual Credit Granting
 
 A small server-controlled PJ Garage Promo Spin wheel for a **free, no-purchase-required** promotion. A customer opens a signed personal link and enters a first and last name. Their profile is created with **0 credits**. Promotional spin credits are granted manually from the password-protected admin dashboard.
@@ -121,3 +125,20 @@ The SQLite database is stored at `data/spins.sqlite`. Without persistent storage
 - Keep the server-side prize configuration in `config.js` backed up and reviewed before deployment.
 - Back up the database.
 - Review applicable promotion rules and platform policies before public use.
+
+
+## V3.2 wheel alignment fix
+- Uses an explicit 8-position landing-angle table instead of computed normalized angles.
+- Waits for `transitionend` before displaying the result.
+- Adds `?v=3.2` cache-busting to CSS/JS references so redeployments do not reuse stale front-end assets.
+
+
+## Short customer links
+
+New links generated from `/admin` use 8-character invite codes, for example:
+
+```text
+https://spin.pjgarage.com/s/7K4M9QTX
+```
+
+The code is stored in SQLite and maps server-side to the signed invitation token. Existing long `?t=...` links remain valid for backward compatibility. Do not truncate old signed tokens manually.
