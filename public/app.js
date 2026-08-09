@@ -133,25 +133,39 @@ spinBtn.addEventListener("click", async () => {
     const index = prizes.findIndex(p => p.id === data.prizeId);
     if (index < 0) throw new Error("Prize result could not be mapped to the wheel.");
 
-    const sectorSize = 360 / prizes.length;
+    // Fixed visual landing map. The wheel artwork is eight equal 45° wedges:
+    // 0 Try Again, 1 ₱10, 2 ₱20, 3 ₱50, 4 ₱100, 5 ₱200, 6 ₱1,000, 7 ₱5,000.
+    // Each value is the wheel rotation needed to put that wedge center at
+    // the fixed 12 o'clock pointer. Using explicit values avoids coordinate
+    // normalization/orientation drift between browsers.
+    const landingAngles = [0, 315, 270, 225, 180, 135, 90, 45];
+    const sectorSize = 45;
 
-    // The wheel artwork is drawn with prize index 0 centered exactly under
-    // the pointer (0 degrees). Each following prize center is +45 degrees
-    // clockwise. To bring the selected prize under the fixed pointer, rotate
-    // the wheel by the negative of that center angle.
-    const selectedCenter = index * sectorSize;
+    // Small visual variation, but always safely inside the selected wedge.
+    const safeOffset = (Math.random() - 0.5) * 10; // ±5°, wedge half-width is 22.5°
+    const desiredModulo = landingAngles[index] + safeOffset;
 
-    // Keep the final stop safely inside the selected wedge.
-    const safeOffset = (Math.random() - 0.5) * sectorSize * 0.30;
-    const desiredAngle = -(selectedCenter + safeOffset);
-    const targetNormalized = ((desiredAngle % 360) + 360) % 360;
-    const currentNormalized = ((rotation % 360) + 360) % 360;
-    const delta = ((targetNormalized - currentNormalized + 360) % 360) + 360 * 6;
-    rotation += delta;
+    // Always move forward at least six complete turns from the current angle.
+    // Then finish at the exact modulo angle assigned to the server result.
+    const currentModulo = ((rotation % 360) + 360) % 360;
+    let forwardDelta = ((desiredModulo - currentModulo) % 360 + 360) % 360;
+    rotation += 2160 + forwardDelta;
 
     statusEl.textContent = "Spinning…";
+    wheel.dataset.serverPrize = data.prizeId;
+    wheel.dataset.serverIndex = String(index);
     wheel.style.transform = `rotate(${rotation}deg)`;
-    setTimeout(() => showResult(data), 5250);
+
+    // transitionend is the authoritative moment. A timeout is kept only as
+    // a fallback for browsers that suppress transition events.
+    let finished = false;
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      showResult(data);
+    };
+    wheel.addEventListener("transitionend", finish, { once: true });
+    setTimeout(finish, 5600);
   } catch (err) {
     statusEl.textContent = err.message;
     spinBtn.disabled = false;
