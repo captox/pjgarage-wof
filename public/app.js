@@ -96,12 +96,21 @@ function showWheel(data) {
 function renderWheelLabels() {
   document.querySelectorAll(".wheel-label").forEach(x => x.remove());
   const sectorSize = 360 / prizes.length;
+  const radius = 33; // percent of wheel diameter from center
+
   prizes.forEach((p, i) => {
+    // Angle 0 is the fixed pointer at 12 o'clock; angles increase clockwise.
+    const angle = i * sectorSize;
+    const rad = angle * Math.PI / 180;
+    const x = 50 + radius * Math.sin(rad);
+    const y = 50 - radius * Math.cos(rad);
+
     const label = document.createElement("div");
     label.className = "wheel-label";
-    const angle = i * sectorSize + sectorSize / 2;
-    label.style.transform = `rotate(${angle}deg) translate(22%, -50%)`;
-    label.innerHTML = `<span style="display:inline-block;transform:rotate(90deg)">${escapeHtml(p.shortLabel)}</span>`;
+    label.style.left = `${x}%`;
+    label.style.top = `${y}%`;
+    label.style.transform = `translate(-50%, -50%) rotate(${angle}deg)`;
+    label.textContent = p.shortLabel;
     wheel.appendChild(label);
   });
 }
@@ -121,13 +130,21 @@ spinBtn.addEventListener("click", async () => {
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Spin failed");
 
-    const index = Math.max(0, prizes.findIndex(p => p.id === data.prizeId));
+    const index = prizes.findIndex(p => p.id === data.prizeId);
+    if (index < 0) throw new Error("Prize result could not be mapped to the wheel.");
+
     const sectorSize = 360 / prizes.length;
-    const sectorCenter = index * sectorSize + sectorSize / 2;
-    // Pointer is fixed at 12 o'clock. Rotate the selected sector center to 0deg.
-    // A small offset keeps the stop natural while remaining safely inside the selected wedge.
-    const safeOffset = (Math.random() - 0.5) * sectorSize * 0.35;
-    const targetNormalized = ((-(sectorCenter + safeOffset)) % 360 + 360) % 360;
+
+    // The wheel artwork is drawn with prize index 0 centered exactly under
+    // the pointer (0 degrees). Each following prize center is +45 degrees
+    // clockwise. To bring the selected prize under the fixed pointer, rotate
+    // the wheel by the negative of that center angle.
+    const selectedCenter = index * sectorSize;
+
+    // Keep the final stop safely inside the selected wedge.
+    const safeOffset = (Math.random() - 0.5) * sectorSize * 0.30;
+    const desiredAngle = -(selectedCenter + safeOffset);
+    const targetNormalized = ((desiredAngle % 360) + 360) % 360;
     const currentNormalized = ((rotation % 360) + 360) % 360;
     const delta = ((targetNormalized - currentNormalized + 360) % 360) + 360 * 6;
     rotation += delta;
