@@ -172,7 +172,7 @@ spinBtn.addEventListener("click", async () => {
 
     statusEl.textContent = "Spinning…";
     wheel.dataset.serverPrize = data.prizeId;
-    wheel.dataset.serverIndex = String(index);
+    wheel.dataset.serverIndex = String(visualIndex);
     wheel.style.transform = `rotate(${rotation}deg)`;
 
     // transitionend is the authoritative moment. A timeout is kept only as
