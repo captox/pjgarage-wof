@@ -23,6 +23,19 @@ const token = shortLinkMatch ? shortLinkMatch[1].toUpperCase() : new URLSearchPa
 let prizes = [];
 let rotation = 0;
 
+// Visual order around the wheel, starting at the fixed 12 o'clock pointer
+// and moving clockwise.
+const VISUAL_ORDER = [
+  "none",
+  "p5000",
+  "p1000",
+  "p200",
+  "p100",
+  "p50",
+  "p20",
+  "p10"
+];
+
 async function init() {
   const r = await fetch("/api/prizes");
   const data = await r.json();
@@ -98,10 +111,12 @@ function showWheel(data) {
 
 function renderWheelLabels() {
   document.querySelectorAll(".wheel-label").forEach(x => x.remove());
-  const sectorSize = 360 / prizes.length;
+
+  const visualPrizes = VISUAL_ORDER.map(id => prizes.find(p => p.id === id)).filter(Boolean);
+  const sectorSize = 360 / visualPrizes.length;
   const radius = 33; // percent of wheel diameter from center
 
-  prizes.forEach((p, i) => {
+  visualPrizes.forEach((p, i) => {
     // Angle 0 is the fixed pointer at 12 o'clock; angles increase clockwise.
     const angle = i * sectorSize;
     const rad = angle * Math.PI / 180;
@@ -133,28 +148,27 @@ spinBtn.addEventListener("click", async () => {
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Spin failed");
 
-    const index = prizes.findIndex(p => p.id === data.prizeId);
-    if (index < 0) throw new Error("Prize result could not be mapped to the wheel.");
+    const visualIndex = VISUAL_ORDER.indexOf(data.prizeId);
+    if (visualIndex < 0) throw new Error("Prize result could not be mapped to the wheel.");
 
-    // Fixed visual landing map. The wheel artwork is eight equal 45° wedges:
-    // 0 Try Again, 1 ₱10, 2 ₱20, 3 ₱50, 4 ₱100, 5 ₱200, 6 ₱1,000, 7 ₱5,000.
-    // Each value is the wheel rotation needed to put that wedge center at
-    // the fixed 12 o'clock pointer. Using explicit values avoids coordinate
-    // normalization/orientation drift between browsers.
-    const landingAngles = [0, 315, 270, 225, 180, 135, 90, 45];
+    // The visible wheel order is:
+    // Try Again → ₱5,000 → ₱1,000 → ₱200 → ₱100 → ₱50 → ₱20 → ₱10
+    // starting at the 12 o'clock pointer and moving clockwise.
+    //
+    // A wedge centered at visual angle A needs a wheel rotation of (360 - A)
+    // to bring that wedge back under the fixed pointer.
     const sectorSize = 45;
+    const visualAngle = visualIndex * sectorSize;
 
-    // Small visual variation, but always safely inside the selected wedge.
-    const safeOffset = (Math.random() - 0.5) * 10; // ±5°, wedge half-width is 22.5°
-    const desiredModulo = landingAngles[index] + safeOffset;
+    // Small visual variation, while staying safely inside the selected wedge.
+    const safeOffset = (Math.random() - 0.5) * 10; // ±5°
+    const desiredModulo = ((360 - visualAngle) + safeOffset + 360) % 360;
 
-    // Always move COUNTERCLOCKWISE at least six complete turns from the
-    // current angle, then finish at the exact modulo angle assigned to the
-    // server result.
+    // Spin CLOCKWISE for at least six full turns, then finish on the
+    // server-selected visual wedge.
     const currentModulo = ((rotation % 360) + 360) % 360;
-    const targetModulo = ((desiredModulo % 360) + 360) % 360;
-    const backwardDelta = ((currentModulo - targetModulo) % 360 + 360) % 360;
-    rotation -= 2160 + backwardDelta;
+    const forwardDelta = ((desiredModulo - currentModulo) % 360 + 360) % 360;
+    rotation += 2160 + forwardDelta;
 
     statusEl.textContent = "Spinning…";
     wheel.dataset.serverPrize = data.prizeId;
