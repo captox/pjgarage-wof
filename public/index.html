@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#171423" />
+  <title>PJ GARAGE PROMO SPIN</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <main class="shell">
+    <section class="card">
+      <div class="eyebrow">PJ GARAGE PROMO SPIN</div>
+
+      <section id="registerPanel" class="register-panel hidden">
+        <h1>Create your spin profile</h1>
+        <p class="sub">Enter your name once to create your PJ Garage Promo Spin profile. Spin credits are added by the administrator.</p>
+        <form id="registerForm" class="name-form">
+          <label>First name<input id="firstName" name="firstName" autocomplete="given-name" maxlength="60" required /></label>
+          <label>Last name<input id="lastName" name="lastName" autocomplete="family-name" maxlength="60" required /></label>
+          <button class="spin-button" type="submit">CONTINUE</button>
+        </form>
+        <p id="registerStatus" class="status" aria-live="polite"></p>
+      </section>
+
+      <section id="wheelPanel" class="hidden">
+        <h1>Use your spin credits</h1>
+        <p id="welcome" class="sub"></p>
+
+        <div class="wheel-wrap" aria-label="Prize wheel">
+          <div class="pointer">▼</div>
+          <div id="wheel" class="wheel">
+            <div class="wheel-center"><span>SPIN</span></div>
+          </div>
+        </div>
+
+        <button id="spinBtn" class="spin-button">🎡 SPIN NOW</button>
+        <p id="balance" class="status"></p>
+        <p id="status" class="status" aria-live="polite"></p>
+
+        <section id="result" class="result hidden" aria-live="polite">
+          <div id="resultIcon" class="result-icon">🎉</div>
+          <h2 id="resultTitle"></h2>
+          <p id="claimWrap" class="hidden">Claim code: <strong id="claimCode"></strong></p>
+        </section>
+
+        <section class="prize-pool">
+          <h3>Prize Pool</h3>
+          <div id="prizePool"></div>
+        </section>
+      </section>
+    </section>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>

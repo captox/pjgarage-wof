@@ -1,0 +1,41 @@
+:root { color-scheme: dark; --bg:#0e0d14; --card:#181522; --text:#fff; --muted:#bdb7c9; --accent:#ffd45a; }
+* { box-sizing:border-box; }
+body { margin:0; min-height:100vh; font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; background:radial-gradient(circle at top,#2b213d 0,#12101a 42%,#09090e 100%); color:var(--text); }
+.shell { min-height:100vh; display:grid; place-items:center; padding:22px; }
+.card { width:min(100%,520px); background:rgba(24,21,34,.94); border:1px solid rgba(255,255,255,.09); border-radius:28px; padding:28px 22px 24px; box-shadow:0 24px 80px rgba(0,0,0,.36); text-align:center; }
+.eyebrow { font-weight:900; letter-spacing:.18em; font-size:12px; color:var(--accent); }
+h1 { font-size:clamp(30px,8vw,46px); line-height:1; margin:10px 0 8px; letter-spacing:-.04em; }
+.sub { color:var(--muted); margin:0 auto 22px; max-width:390px; }
+.wheel-wrap { position:relative; width:min(82vw,380px); aspect-ratio:1; margin:0 auto 20px; filter:drop-shadow(0 18px 28px rgba(0,0,0,.35)); }
+.pointer { position:absolute; z-index:3; left:50%; top:-16px; transform:translateX(-50%); font-size:38px; color:#fff; text-shadow:0 3px 8px #0008; }
+.wheel { position:absolute; inset:0; border-radius:50%; border:10px solid #f2ede6; background:conic-gradient(#6546d7 0 45deg,#f2b84b 45deg 90deg,#2da67f 90deg 135deg,#d64b69 135deg 180deg,#2a87d3 180deg 225deg,#8b5bd7 225deg 270deg,#d98a36 270deg 315deg,#278f8f 315deg 360deg); transition:transform 5.2s cubic-bezier(.12,.68,.06,1); overflow:hidden; }
+.wheel::before { content:""; position:absolute; inset:12px; border-radius:50%; border:2px solid rgba(255,255,255,.28); }
+.wheel-center { position:absolute; inset:35%; border-radius:50%; display:grid; place-items:center; background:#14111e; border:7px solid #f2ede6; box-shadow:0 4px 18px #0007; z-index:2; }
+.wheel-center span { font-weight:950; letter-spacing:.08em; font-size:clamp(15px,4vw,22px); }
+.wheel-label { position:absolute; left:50%; top:50%; width:43%; transform-origin:0 0; font-weight:900; font-size:clamp(11px,3.2vw,16px); text-shadow:0 2px 3px #0009; }
+.spin-button { width:100%; border:0; border-radius:16px; padding:16px 18px; background:var(--accent); color:#1d1722; font-size:18px; font-weight:950; cursor:pointer; box-shadow:0 8px 0 #aa8629; transform:translateY(-2px); }
+.spin-button:active { transform:translateY(3px); box-shadow:0 3px 0 #aa8629; }
+.spin-button:disabled { opacity:.5; cursor:not-allowed; transform:none; box-shadow:none; }
+.status { min-height:22px; color:var(--muted); }
+.result { margin-top:14px; padding:18px; border-radius:18px; background:rgba(255,255,255,.07); }
+.result h2 { margin:5px 0; font-size:27px; }
+.result-icon { font-size:42px; }
+.hidden { display:none !important; }
+.odds { margin-top:20px; text-align:left; background:rgba(255,255,255,.05); border-radius:14px; padding:13px 15px; color:var(--muted); }
+.odds summary { cursor:pointer; color:#fff; font-weight:750; }
+.odds table { width:100%; border-collapse:collapse; margin:10px 0; }
+.odds td { padding:6px 0; border-bottom:1px solid rgba(255,255,255,.08); }
+.odds td:last-child { text-align:right; color:#fff; font-variant-numeric:tabular-nums; }
+@media (prefers-reduced-motion: reduce) { .wheel { transition-duration:.01ms; } }
+.register-panel { text-align:left; }
+.register-panel h1, .register-panel .sub { text-align:center; }
+.name-form { display:grid; gap:14px; margin-top:18px; }
+.name-form label { display:grid; gap:7px; font-size:14px; font-weight:750; }
+.name-form input { width:100%; border:1px solid rgba(255,255,255,.16); background:rgba(255,255,255,.07); color:#fff; border-radius:13px; padding:14px 13px; font-size:16px; outline:none; }
+.name-form input:focus { border-color:var(--accent); }
+
+.prize-pool { margin-top:20px; text-align:left; background:rgba(255,255,255,.05); border-radius:14px; padding:13px 15px; color:var(--muted); }
+.prize-pool h3 { margin:0 0 10px; color:#fff; font-size:16px; }
+.prize-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+.prize-grid span { text-align:center; padding:9px 5px; border-radius:10px; background:rgba(255,255,255,.07); color:#fff; font-weight:800; font-variant-numeric:tabular-nums; }
+@media (max-width:390px) { .prize-grid { grid-template-columns:repeat(2,1fr); } }
